@@ -1,0 +1,439 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Wolfram 14.3' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       154,          7]
+NotebookDataLength[     16619,        431]
+NotebookOptionsPosition[     15918,        410]
+NotebookOutlinePosition[     16309,        426]
+CellTagsIndexPosition[     16266,        423]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"lang", "=", "\"\<C\>\""}], ";"}], "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"checkIfCompiled", "[", "compiledFunc_CompiledFunction", "]"}], ":=", 
+    RowBox[{"Module", "[", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{
+       "compiledPrintOutput", ",", "hasMainEvaluate", ",", 
+        "mainEvaluateParts"}], "}"}], ",", 
+      RowBox[{
+       RowBox[{"compiledPrintOutput", "=", 
+        RowBox[{"ToString", "[", 
+         RowBox[{
+          RowBox[{
+          "CompiledFunctionTools`CompilePrint", "[", "compiledFunc", "]"}], ",",
+           "InputForm"}], "]"}]}], ";", "\[IndentingNewLine]", 
+       RowBox[{"hasMainEvaluate", "=", 
+        RowBox[{"StringContainsQ", "[", 
+         RowBox[{"compiledPrintOutput", ",", "\"\<MainEvaluate\>\""}], 
+         "]"}]}], ";", "\[IndentingNewLine]", 
+       RowBox[{"mainEvaluateParts", "=", 
+        RowBox[{"If", "[", 
+         RowBox[{"hasMainEvaluate", ",", 
+          RowBox[{"StringCases", "[", 
+           RowBox[{"compiledPrintOutput", ",", 
+            RowBox[{"\"\<MainEvaluate\>\"", "~~", "\"\<[\>\"", "~~", 
+             RowBox[{"Shortest", "[", "___", "]"}], "~~", "\"\<]\>\""}]}], 
+           "]"}], ",", 
+          RowBox[{"{", "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", 
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"!", "hasMainEvaluate"}], ",", "mainEvaluateParts"}], 
+        "}"}]}]}], "]"}]}], ";"}], "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"SetAttributes", "[", 
+   RowBox[{"ruleDown", ",", "HoldAll"}], "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"ruleDown", "[", "list_", "]"}], ":=", 
+  RowBox[{"Flatten", "[", 
+   RowBox[{"DownValues", "/@", 
+    RowBox[{"(", 
+     RowBox[{"Unevaluated", "@", "list"}], ")"}]}], "]"}]}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"SetAttributes", "[", 
+   RowBox[{"ruleOwn", ",", "HoldAll"}], "]"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"ruleOwn", "[", "list_", "]"}], ":=", 
+   RowBox[{"Flatten", "[", 
+    RowBox[{"OwnValues", "/@", 
+     RowBox[{"(", 
+      RowBox[{"Unevaluated", "@", "list"}], ")"}]}], "]"}]}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"dirCompFuncsProject", "=", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", 
+     RowBox[{"dirAuxiliary", ",", "\"\<Comp-funcs\>\""}], "}"}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"ifUseLocalCompiledFunctionCache", "=", 
+   RowBox[{"$OperatingSystem", "==", "\"\<MacOSX\>\""}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"dirCompFuncs", "=", 
+   RowBox[{"If", "[", 
+    RowBox[{"ifUseLocalCompiledFunctionCache", ",", 
+     RowBox[{"FileNameJoin", "[", 
+      RowBox[{"{", 
+       RowBox[{
+       "$HomeDirectory", ",", "\"\<.alp-eic-cf\>\"", ",", "$SystemID"}], 
+       "}"}], "]"}], ",", "dirCompFuncsProject"}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"fileManifest", ",", "fileCompFuncs", ",", "fileSupport"}], "}"}],
+    "=", 
+   RowBox[{"{", 
+    RowBox[{"\"\<CompiledManifest.mx\>\"", ",", "\"\<CompiledFunctions.mx\>\"",
+      ",", "\"\<CompiledSupport.mx\>\""}], "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"compFuncsExists", "=", 
+   RowBox[{"And", "@@", 
+    RowBox[{"(", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"FileExistsQ", "[", 
+        RowBox[{"FileNameJoin", "[", 
+         RowBox[{"{", 
+          RowBox[{"dirCompFuncs", ",", "#"}], "}"}], "]"}], "]"}], "&"}], "/@", 
+      RowBox[{"{", 
+       RowBox[{"fileManifest", ",", "fileCompFuncs", ",", "fileSupport"}], 
+       "}"}]}], ")"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"If", "[", 
+  RowBox[{"compFuncsExists", ",", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"compFuncsExists", "=", 
+     RowBox[{"Quiet", "@", 
+      RowBox[{"Check", "[", 
+       RowBox[{
+        RowBox[{"With", "[", 
+         RowBox[{
+          RowBox[{"{", 
+           RowBox[{"manifest", "=", 
+            RowBox[{"Import", "[", 
+             RowBox[{
+              RowBox[{"FileNameJoin", "[", 
+               RowBox[{"{", 
+                RowBox[{"dirCompFuncs", ",", "fileManifest"}], "}"}], "]"}], 
+              ",", "\"\<MX\>\""}], "]"}]}], "}"}], ",", 
+          RowBox[{
+           RowBox[{
+            RowBox[{"Lookup", "[", 
+             RowBox[{"manifest", ",", "\"\<SystemID\>\"", ",", "\"\<\>\""}], 
+             "]"}], "==", "$SystemID"}], "&&", 
+           RowBox[{
+            RowBox[{"Lookup", "[", 
+             RowBox[{"manifest", ",", "\"\<SystemWordLength\>\"", ",", "0"}], 
+             "]"}], "==", "$SystemWordLength"}], "&&", 
+           RowBox[{"If", "[", 
+            RowBox[{"ifUseLocalCompiledFunctionCache", ",", 
+             RowBox[{
+              RowBox[{
+               RowBox[{"Lookup", "[", 
+                RowBox[{
+                "manifest", ",", "\"\<CacheKind\>\"", ",", "\"\<\>\""}], 
+                "]"}], "==", "\"\<LocalCompiledFunctionCache\>\""}], "&&", 
+              RowBox[{
+               RowBox[{"Lookup", "[", 
+                RowBox[{
+                "manifest", ",", "\"\<CacheSchemaVersion\>\"", ",", "0"}], 
+                "]"}], "==", "10"}], "&&", 
+              RowBox[{"AllTrue", "[", 
+               RowBox[{
+                RowBox[{"Lookup", "[", 
+                 RowBox[{"manifest", ",", "\"\<CachedNativeFiles\>\"", ",", 
+                  RowBox[{"Lookup", "[", 
+                   RowBox[{"manifest", ",", "\"\<ReferencedNativeFiles\>\"", ",", 
+                    RowBox[{"{", "}"}]}], "]"}]}], "]"}], ",", 
+                "FileExistsQ"}], "]"}]}], ",", "True"}], "]"}]}]}], "]"}], ",",
+         "False"}], "]"}]}]}], ";"}]}], "\[IndentingNewLine]", "]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"If", "[", 
+   RowBox[{
+    RowBox[{"ifRecomputeFunctionsTables", "||", 
+     RowBox[{"!", "compFuncsExists"}]}], ",", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"ifRecomputeCompiledRoutines", "=", "True"}], ";", 
+     "\[IndentingNewLine]", 
+     RowBox[{"<<", "FeynCalc`"}], ";", "\[IndentingNewLine]", 
+     RowBox[{"With", "[", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{"files", "=", 
+         RowBox[{"FileNames", "[", 
+          RowBox[{"\"\<*\>\"", ",", "dirCompFuncs"}], "]"}]}], "}"}], ",", 
+       RowBox[{
+        RowBox[{"Do", "[", 
+         RowBox[{
+          RowBox[{"If", "[", 
+           RowBox[{
+            RowBox[{"DirectoryQ", "[", "f", "]"}], ",", 
+            RowBox[{"DeleteDirectory", "[", 
+             RowBox[{"f", ",", 
+              RowBox[{"DeleteContents", "\[Rule]", "True"}]}], "]"}], ",", 
+            RowBox[{"If", "[", 
+             RowBox[{
+              RowBox[{"FileExistsQ", "[", "f", "]"}], ",", 
+              RowBox[{"DeleteFile", "[", "f", "]"}]}], "]"}]}], "]"}], ",", 
+          RowBox[{"{", 
+           RowBox[{"f", ",", "files"}], "}"}]}], "]"}], ";", 
+        "\[IndentingNewLine]", 
+        RowBox[{"compFuncsExists", "=", "False"}], ";"}]}], "]"}]}]}], 
+   "\[IndentingNewLine]", "]"}], "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"(*", 
+   RowBox[{
+    RowBox[{"On", " ", "Windows"}], ",", " ", 
+    RowBox[{
+    "switching", " ", "to", " ", "a", " ", "faster", " ", "compiler", " ", 
+     "if", " ", "available"}]}], "*)"}]}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"If", "[", 
+   RowBox[{
+    RowBox[{"$OperatingSystem", "===", "\"\<Windows\>\""}], ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"Needs", "[", "\"\<CCompilerDriver`\>\"", "]"}], ";", 
+     "\[IndentingNewLine]", 
+     RowBox[{"Needs", "[", "\"\<CCompilerDriver`GenericCCompiler`\>\"", "]"}],
+      ";", "\[IndentingNewLine]", 
+     RowBox[{"msysRoot", "=", "\"\<C:\\\\msys64\\\\ucrt64\>\""}], ";", 
+     "\[IndentingNewLine]", 
+     RowBox[{"msysBin", "=", 
+      RowBox[{"FileNameJoin", "[", 
+       RowBox[{"{", 
+        RowBox[{"msysRoot", ",", "\"\<bin\>\""}], "}"}], "]"}]}], ";", 
+     "\[IndentingNewLine]", 
+     RowBox[{"gccExe", "=", 
+      RowBox[{"FileNameJoin", "[", 
+       RowBox[{"{", 
+        RowBox[{"msysBin", ",", "\"\<gcc.exe\>\""}], "}"}], "]"}]}], ";", 
+     "\[IndentingNewLine]", 
+     RowBox[{"If", "[", 
+      RowBox[{
+       RowBox[{"FileExistsQ", "[", "gccExe", "]"}], ",", 
+       RowBox[{
+        RowBox[{"SetEnvironment", "[", 
+         RowBox[{"\"\<PATH\>\"", "->", 
+          RowBox[{"msysBin", "<>", "\"\<;\>\"", "<>", 
+           RowBox[{"Replace", "[", 
+            RowBox[{
+             RowBox[{"Environment", "[", "\"\<PATH\>\"", "]"}], ",", 
+             RowBox[{
+              RowBox[{"Except", "[", "_String", "]"}], "->", "\"\<\>\""}]}], 
+            "]"}]}]}], "]"}], ";", "\[IndentingNewLine]", 
+        RowBox[{"gcc", "=", 
+         RowBox[{"{", 
+          RowBox[{
+           RowBox[{"\"\<Name\>\"", "->", "\"\<MSYS2 UCRT64 GCC\>\""}], ",", 
+           
+           RowBox[{"\"\<Compiler\>\"", "->", 
+            "CCompilerDriver`GenericCCompiler`GenericCCompiler"}], ",", 
+           RowBox[{"\"\<CompilerInstallation\>\"", "->", "msysRoot"}], ",", 
+           RowBox[{"\"\<CompilerName\>\"", "->", "\"\<gcc.exe\>\""}], ",", 
+           RowBox[{"\"\<CompileOptions\>\"", "->", "\"\<-O2\>\""}]}], "}"}]}],
+         ";", "\[IndentingNewLine]", 
+        RowBox[{"CCompilerDriver`$CCompiler", "=", "gcc"}], ";", 
+        "\[IndentingNewLine]", 
+        RowBox[{"If", "[", 
+         RowBox[{
+          RowBox[{
+           RowBox[{"Length", "[", 
+            RowBox[{"Kernels", "[", "]"}], "]"}], ">", "0"}], ",", 
+          RowBox[{"With", "[", 
+           RowBox[{
+            RowBox[{"{", 
+             RowBox[{
+              RowBox[{"path", "=", 
+               RowBox[{"Environment", "[", "\"\<PATH\>\"", "]"}]}], ",", 
+              RowBox[{"compiler", "=", "gcc"}]}], "}"}], ",", 
+            RowBox[{"ParallelEvaluate", "[", 
+             RowBox[{
+              RowBox[{"Needs", "[", "\"\<CCompilerDriver`\>\"", "]"}], ";", 
+              "\[IndentingNewLine]", 
+              RowBox[{
+              "Needs", "[", "\"\<CCompilerDriver`GenericCCompiler`\>\"", 
+               "]"}], ";", "\[IndentingNewLine]", 
+              RowBox[{"SetEnvironment", "[", 
+               RowBox[{"\"\<PATH\>\"", "->", "path"}], "]"}], ";", 
+              "\[IndentingNewLine]", 
+              RowBox[{"CCompilerDriver`$CCompiler", "=", "compiler"}], ";"}], 
+             "\[IndentingNewLine]", "]"}]}], "\[IndentingNewLine]", "]"}]}], 
+         "\[IndentingNewLine]", "]"}], ";"}]}], "\[IndentingNewLine]", "]"}], 
+     ";"}]}], "\[IndentingNewLine]", "]"}], ";"}]}], "Input",
+ CellChangeTimes->{{3.992266147234068*^9, 3.9922661681793213`*^9}, {
+   3.99226620348131*^9, 3.9922662453577785`*^9}, {3.992266773383013*^9, 
+   3.992266785785475*^9}, 3.992266855382456*^9, {3.9965627822571077`*^9, 
+   3.9965627825275097`*^9}, {3.9965838975073023`*^9, 
+   3.9965838978088417`*^9}},ExpressionUUID->"d67cb98c-f583-f145-a2e8-\
+2262ff7004a3"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   StyleBox["\<\"FeynCalc \"\>", "Text",
+    StripOnInput->False,
+    FontWeight->Bold], "\[InvisibleSpace]", 
+   StyleBox["\<\"10.2.1 (stable version). For help, use the \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{
+       RowBox[{"online", " ", "documentation"}], ","}],
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL["https://feyncalc.github.io/referenceDev"], None},
+      ButtonNote->"https://feyncalc.github.io/referenceDev"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" visit the \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox["forum",
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL["https://github.com/FeynCalc/feyncalc/discussions"], None},
+      ButtonNote->"https://github.com/FeynCalc/feyncalc/discussions/"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" and have a look at the supplied \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{"examples", "."}],
+      BaseStyle->"Hyperlink",
+      ButtonFunction:>SystemOpen[
+        FileNameJoin[{FeynCalc`$FeynCalcDirectory, "Examples"}]],
+      Evaluator->Automatic,
+      Method->"Preemptive"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" The PDF-version of the manual can be downloaded \"\>", 
+    "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{"here", "."}],
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL[
+        "https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-\
+manual/FeynCalcManual.pdf"], None},
+      ButtonNote->
+       "https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-\
+manual/FeynCalcManual.pdf"],
+     DisplayForm], "Text",
+    StripOnInput->False]}],
+  SequenceForm[
+   Style["FeynCalc ", "Text", Bold], 
+   Style["10.2.1 (stable version). For help, use the ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["online documentation,", ButtonData :> {
+        URL["https://feyncalc.github.io/referenceDev"], None}, BaseStyle -> 
+      "Hyperlink", ButtonNote -> "https://feyncalc.github.io/referenceDev"]], 
+    "Text"], 
+   Style[" visit the ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["forum", ButtonData :> {
+        URL["https://github.com/FeynCalc/feyncalc/discussions"], None}, 
+      BaseStyle -> "Hyperlink", ButtonNote -> 
+      "https://github.com/FeynCalc/feyncalc/discussions/"]], "Text"], 
+   Style[" and have a look at the supplied ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox[
+     "examples.", BaseStyle -> "Hyperlink", ButtonFunction :> SystemOpen[
+        FileNameJoin[{FeynCalc`$FeynCalcDirectory, "Examples"}]], Evaluator -> 
+      Automatic, Method -> "Preemptive"]], "Text"], 
+   Style[" The PDF-version of the manual can be downloaded ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["here.", ButtonData :> {
+        URL[
+        "https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-\
+manual/FeynCalcManual.pdf"], None}, BaseStyle -> "Hyperlink", ButtonNote -> 
+      "https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-\
+manual/FeynCalcManual.pdf"]], "Text"]],
+  Editable->False]], "Print",
+ CellChangeTimes->{3.992266844947712*^9},
+ CellLabel->
+  "During evaluation of \
+In[13]:=",ExpressionUUID->"8edda7ab-821f-4046-945b-8433c3350e8d"],
+
+Cell[BoxData[
+ StyleBox["\<\"If you use FeynCalc in your research, please evaluate \
+FeynCalcHowToCite[] to learn how to cite this software.\"\>", "Text",
+  StripOnInput->False]], "Print",
+ CellChangeTimes->{3.992266844985672*^9},
+ CellLabel->
+  "During evaluation of \
+In[13]:=",ExpressionUUID->"db35aa08-0c8d-bf49-91c0-9946f2a75291"],
+
+Cell[BoxData[
+ StyleBox["\<\"Please keep in mind that the proper academic attribution of \
+our work is crucial to ensure the future development of this package!\"\>", 
+  "Text",
+  StripOnInput->False,
+  FontSlant->Italic]], "Print",
+ CellChangeTimes->{3.99226684499164*^9},
+ CellLabel->
+  "During evaluation of \
+In[13]:=",ExpressionUUID->"4cac2f5e-472a-d547-a45e-5c62328573b0"]
+}, Open  ]]
+}, Open  ]]
+},
+WindowSize->{960, 533},
+WindowMargins->{{-5, Automatic}, {Automatic, 0}},
+FrontEndVersion->"14.3 for Mac OS X ARM (64-bit) (July 8, 2025)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"65a91a9b-eb2b-9648-9650-b800380a7c5d"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[576, 22, 10944, 264, 1316, "Input",ExpressionUUID->"d67cb98c-f583-f145-a2e8-2262ff7004a3"],
+Cell[CellGroupData[{
+Cell[11545, 290, 3626, 96, 50, "Print",ExpressionUUID->"8edda7ab-821f-4046-945b-8433c3350e8d"],
+Cell[15174, 388, 335, 7, 26, "Print",ExpressionUUID->"db35aa08-0c8d-bf49-91c0-9946f2a75291"],
+Cell[15512, 397, 378, 9, 26, "Print",ExpressionUUID->"4cac2f5e-472a-d547-a45e-5c62328573b0"]
+}, Open  ]]
+}, Open  ]]
+}
+]
+*)
+

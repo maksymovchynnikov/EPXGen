@@ -1,0 +1,375 @@
+(* ============================================================ *)
+(* Import-only helpers. Requires defs-generic.txt.               *)
+(* Imports permanent CompiledFunction objects and activates       *)
+(* non-listable C functions as raw LibraryFunction objects.       *)
+(* Listable compiled functions keep the CompiledFunction wrapper. *)
+(* ============================================================ *)
+
+Quiet@Needs["CompiledFunctionTools`"];
+
+ClearAll[
+  CP$importFullCompiledFunctions, CP$libraryFunctionsInsideCompiledFunction,
+  CP$mainLibraryFunction, CP$compiledFunctionRuntimeAttributes,
+  CP$listableCompiledFunctionQ, CP$libraryFunctionArgumentRanks,
+  CP$argumentRank, CP$rankAwareNativeApply, CP$installThreadedNativeWrapper,
+  CP$activateImportedNativeLibraryFunctions, CP$localCompiledCacheQ,
+  CP$materializeLocalCompiledCacheNativeFiles,
+  CP$runNativeImport,
+  CP$definitionTransferRecord, CP$definitionTransferBlock,
+  CP$importTransferNames
+  ];
+
+CP$importTransferNames = {
+  "fileManifest", "fileCompFuncs", "fileSupport", "dirCompFuncs",
+  "CP$shortName", "CP$heldSymbol", "CP$withSymbol", "CP$getValue",
+  "CP$setValue", "CP$sharedLibExtQ", "CP$sharedLibFileQ",
+  "CP$ensureDir", "CP$safeFileBase", "CP$compiledFunctionQ",
+  "CP$compiledSymbolsOwn", "CP$libraryFilesInsideCF",
+  "CP$libraryFunctionParts", "CP$libraryFunctionReloadFailure",
+  "CP$clearLibraryFunctionReloadFailures", "CP$reloadLibraryFunction",
+  "CP$rewriteLibraryPathsInCF", "CP$supportRecord",
+  "CP$restoreSupportRecord",
+  "CP$importFullCompiledFunctions", "CP$libraryFunctionsInsideCompiledFunction",
+  "CP$mainLibraryFunction", "CP$compiledFunctionRuntimeAttributes",
+  "CP$listableCompiledFunctionQ", "CP$libraryFunctionArgumentRanks",
+  "CP$argumentRank", "CP$rankAwareNativeApply",
+  "CP$installThreadedNativeWrapper",
+  "CP$activateImportedNativeLibraryFunctions", "CP$localCompiledCacheQ",
+  "CP$materializeLocalCompiledCacheNativeFiles",
+  "CP$runNativeImport"
+  };
+
+Options[CP$importFullCompiledFunctions] = {"CheckSystem" -> True};
+
+CP$materializeLocalCompiledCacheNativeFiles[manifest_Association] :=
+  Module[{records, restored = {}, missingCached = {}, src, dst},
+   If[! CP$localCompiledCacheQ[manifest],
+    Return[
+     <|"RestoredNativeFiles" -> {},
+      "MissingCachedNativeFiles" -> {}|>]];
+   If[Lookup[manifest, "CacheSchemaVersion", 0] =!= 10,
+    Return[
+     <|"RestoredNativeFiles" -> {},
+      "MissingCachedNativeFiles" ->
+       {<|"Error" -> "UnsupportedLocalCacheSchema",
+         "CacheSchemaVersion" ->
+          Lookup[manifest, "CacheSchemaVersion", Missing["NotPresent"]]|>}|>]];
+   records = Lookup[manifest, "NativeFileRecords", {}];
+   Do[
+    dst = Lookup[rec, "OriginalNativeFile", Missing["OriginalNativeFile"]];
+    src =
+     Lookup[rec, "CachedNativeFile",
+      Lookup[rec, "CopiedNativeFile", Missing["CachedNativeFile"]]];
+    If[StringQ[dst] && ! FileExistsQ[dst],
+     If[StringQ[src] && FileExistsQ[src],
+      CP$ensureDir[DirectoryName[dst]];
+      Quiet@
+       Check[
+        CopyFile[src, dst, OverwriteTarget -> True];
+        AppendTo[restored, dst],
+        AppendTo[
+         missingCached,
+         <|"OriginalNativeFile" -> dst, "CachedNativeFile" -> src|>]],
+      AppendTo[
+       missingCached,
+       <|"OriginalNativeFile" -> dst, "CachedNativeFile" -> src|>]]],
+    {rec, records}];
+   <|"RestoredNativeFiles" -> restored,
+    "MissingCachedNativeFiles" -> missingCached|>
+   ];
+
+CP$importFullCompiledFunctions[dir_String : dirCompFuncs,
+   OptionsPattern[]] :=
+  Module[{checkSystem, manifest, compiledFileName, supportFileName,
+   compiledData, compiledNames, compiledFunctions, supportRecords,
+   importedCompiledFunctions, referencedNativeFiles, missingNativeFiles,
+    materializeReport},
+   checkSystem = TrueQ[OptionValue["CheckSystem"]];
+   manifest = Import[FileNameJoin[{dir, fileManifest}], "MX"];
+   If[
+    checkSystem &&
+     (Lookup[manifest, "SystemID", Missing["SystemID"]] =!= $SystemID ||
+       Lookup[manifest, "SystemWordLength",
+         Missing["SystemWordLength"]] =!= $SystemWordLength),
+    Print[
+     "System mismatch. Cache was created for ",
+     Lookup[manifest, "SystemID", Missing["SystemID"]], " / ",
+     Lookup[manifest, "SystemWordLength", Missing["SystemWordLength"]],
+     ", but current kernel is ", $SystemID, " / ", $SystemWordLength];
+    Abort[]];
+   materializeReport = CP$materializeLocalCompiledCacheNativeFiles[manifest];
+   If[Lookup[materializeReport, "MissingCachedNativeFiles", {}] =!= {},
+    Print["Compiled-function cache is missing cached native files:"];
+    Print[Lookup[materializeReport, "MissingCachedNativeFiles", {}]];
+    Return[
+     <|"Error" -> "MissingCachedNativeFiles",
+      "PermanentDirectory" -> ExpandFileName[dir],
+      "Manifest" -> manifest,
+      "NativeMaterializationReport" -> materializeReport|>]];
+   referencedNativeFiles = Lookup[manifest, "ReferencedNativeFiles", {}];
+   missingNativeFiles =
+    Select[referencedNativeFiles, StringQ[#] && ! FileExistsQ[#] &];
+   If[missingNativeFiles =!= {},
+    Print["Compiled-function cache references missing native files:"];
+    Print[missingNativeFiles];
+    Return[
+     <|"Error" -> "MissingReferencedNativeFiles",
+      "PermanentDirectory" -> ExpandFileName[dir],
+      "Manifest" -> manifest,
+      "NativeMaterializationReport" -> materializeReport,
+      "MissingNativeFiles" -> missingNativeFiles|>]];
+   compiledFileName = Lookup[manifest, "CompiledFileName", fileCompFuncs];
+   supportFileName = Lookup[manifest, "SupportFileName", fileSupport];
+   supportRecords = Import[FileNameJoin[{dir, supportFileName}], "MX"];
+   Scan[CP$restoreSupportRecord, supportRecords];
+   compiledData = Import[FileNameJoin[{dir, compiledFileName}], "MX"];
+   compiledNames = Lookup[compiledData, "Names", {}];
+   compiledFunctions = Lookup[compiledData, "CompiledFunctions", {}];
+   MapThread[CP$setValue[#1, #2] &, {compiledNames, compiledFunctions}];
+   importedCompiledFunctions = CP$getValue /@ compiledNames;
+   <|"PermanentDirectory" -> ExpandFileName[dir],
+    "ImportedCompiledNames" -> compiledNames,
+    "ImportedCompiledFunctions" -> importedCompiledFunctions,
+    "ImportedCompiledFunctionAssociation" ->
+     AssociationThread[compiledNames -> importedCompiledFunctions],
+    "NativeFilesInPermanentDirectory" ->
+     Select[FileNames["*", dir], CP$sharedLibFileQ],
+    "MXFilesInPermanentDirectory" ->
+     Select[FileNames["*.mx", dir], FileExistsQ],
+    "AllFilesInPermanentDirectory" -> FileNames["*", dir],
+    "NativeMaterializationReport" -> materializeReport,
+    "Manifest" -> manifest|>
+   ];
+
+CP$libraryFunctionsInsideCompiledFunction[cf_CompiledFunction] :=
+  Cases[Unevaluated[cf] /. CompiledFunction -> List,
+   lib_LibraryFunction :> lib, Infinity];
+
+CP$mainLibraryFunction[cf_CompiledFunction] :=
+  Module[{libs = CP$libraryFunctionsInsideCompiledFunction[cf]},
+   If[libs === {}, Missing["NoLibraryFunction"], Last[libs]]
+   ];
+
+CP$compiledFunctionRuntimeAttributes[cf_CompiledFunction] :=
+  Module[{raw, vals, attrs, print},
+   raw = Unevaluated[cf] /. {CompiledFunction -> List,
+      LibraryFunction -> List, LibraryData -> List};
+   vals =
+    Cases[raw,
+     Rule[RuntimeAttributes, value_] :> value, Infinity];
+   If[vals === {},
+    vals =
+     Quiet@
+      Check[{RuntimeAttributes /. Options[cf, RuntimeAttributes]}, {}]];
+   If[Flatten[{vals}] === {} || Flatten[{vals}] === {RuntimeAttributes},
+    print =
+     Quiet@Check[
+       ToString[CompiledFunctionTools`CompilePrint[cf], InputForm], ""];
+    If[StringContainsQ[print, "RuntimeAttributes -> {Listable}"] ||
+      StringContainsQ[print, "RuntimeAttributes -> Listable"],
+     vals = {{Listable}}]];
+   attrs =
+    DeleteCases[Flatten[{If[vals === {}, {}, Last[vals]]}],
+     None | Null | RuntimeAttributes];
+   attrs
+   ];
+
+CP$listableCompiledFunctionQ[cf_CompiledFunction] :=
+  MemberQ[CP$compiledFunctionRuntimeAttributes[cf], Listable];
+
+CP$libraryFunctionArgumentRanks[lib_LibraryFunction] :=
+  Module[{raw, args},
+   raw = Unevaluated[lib] /. LibraryFunction -> List;
+   args = Replace[raw, {_, _, a_, ___} :> a];
+   Replace[
+    args,
+    {specs : {__List} :>
+      (Replace[#, {_, rank_Integer, ___} :> rank] & /@ specs),
+     _ -> {}}]
+   ];
+
+CP$argumentRank[x_] := ArrayDepth[x];
+
+CP$rankAwareNativeApply[lib_LibraryFunction, ranks_List, args_List] :=
+  Module[{depths, threadPositions, n, lengths, newArgs},
+   depths = CP$argumentRank /@ args;
+   threadPositions =
+    Flatten@Position[MapThread[#1 > #2 &, {depths, ranks}], True];
+   If[threadPositions === {}, Return[lib @@ args]];
+   lengths = Length /@ args[[threadPositions]];
+   If[Length[DeleteDuplicates[lengths]] =!= 1, Return[lib @@ args]];
+   n = First[lengths];
+   Table[
+    newArgs = args;
+    newArgs[[threadPositions]] = args[[threadPositions, i]];
+    CP$rankAwareNativeApply[lib, ranks, newArgs],
+    {i, n}]
+   ];
+
+CP$installThreadedNativeWrapper[name_String, lib_LibraryFunction] :=
+  CP$withSymbol[name,
+   Function[sym,
+    Module[{ranks},
+     ranks = CP$libraryFunctionArgumentRanks[lib];
+     Quiet[Unprotect[sym]];
+     ClearAll[sym];
+     sym[args___] := CP$rankAwareNativeApply[lib, ranks, {args}];
+     sym],
+    HoldAll]];
+
+Options[CP$activateImportedNativeLibraryFunctions] =
+  {"ListableActivation" -> "CompiledFunction",
+   "NonListableActivation" -> "LibraryFunction"};
+
+CP$activateImportedNativeLibraryFunctions[imp_Association,
+   OptionsPattern[]] :=
+  Module[{manifest, activationNames, listableNames, hasListableNames, mode,
+    nonListableMode},
+   manifest = Lookup[imp, "Manifest", <||>];
+   activationNames =
+    CP$shortName /@
+     Lookup[manifest, "NativeActivationOrder",
+      Lookup[imp, "ImportedCompiledNames", {}]];
+   listableNames =
+    CP$shortName /@ Lookup[manifest, "ListableCompiledNames", {}];
+   hasListableNames = KeyExistsQ[manifest, "ListableCompiledNames"];
+   mode = OptionValue["ListableActivation"];
+   nonListableMode = OptionValue["NonListableActivation"];
+   AssociationThread[
+    activationNames,
+    Function[name,
+      CP$withSymbol[
+       name,
+       Function[
+        sym,
+         Module[{cf, lib, listableQ, shortName},
+         If[! MatchQ[sym, _CompiledFunction], Return[$Failed]];
+         cf = sym;
+         shortName = CP$shortName[name];
+         listableQ =
+          If[hasListableNames,
+           MemberQ[listableNames, shortName],
+           CP$listableCompiledFunctionQ[cf]];
+         lib = CP$mainLibraryFunction[cf];
+         If[Head[lib] =!= LibraryFunction, Return[$Failed]];
+         Which[
+          listableQ && mode === "CompiledFunction",
+          cf,
+          listableQ && mode === "ThreadedLibraryFunction",
+          If[$OperatingSystem === "MacOSX",
+           lib = CP$reloadLibraryFunction[lib]];
+          If[Head[lib] =!= LibraryFunction, Return[$Failed]];
+          CP$installThreadedNativeWrapper[name, lib],
+          ! listableQ && nonListableMode === "CompiledFunction",
+          cf,
+          ! listableQ && nonListableMode === "ThreadedLibraryFunction",
+          If[$OperatingSystem === "MacOSX",
+           lib = CP$reloadLibraryFunction[lib]];
+          If[Head[lib] =!= LibraryFunction, Return[$Failed]];
+          CP$installThreadedNativeWrapper[name, lib],
+          True,
+          If[$OperatingSystem === "MacOSX",
+           lib = CP$reloadLibraryFunction[lib]];
+          If[Head[lib] =!= LibraryFunction, Return[$Failed]];
+          sym = lib;
+          sym]
+         ],
+        HoldAll]]
+      ] /@ activationNames]
+   ];
+
+CP$localCompiledCacheQ[manifest_Association] :=
+  Lookup[manifest, "CacheKind", ""] === "LocalCompiledFunctionCache" ||
+   Lookup[manifest, "ExportMode", ""] === "LocalCompiledFunctionCache";
+
+CP$runNativeImport[dir_String : dirCompFuncs] :=
+  Module[{failedActivationNames, activationReloadFailures},
+   importReport = CP$importFullCompiledFunctions[dir];
+   If[AssociationQ[importReport] && KeyExistsQ[importReport, "Error"],
+    importNativeReport =
+     <|"ImportReport" -> importReport,
+      "NativeActivationReport" -> <||>|>;
+    Abort[]];
+   CP$clearLibraryFunctionReloadFailures[];
+   nativeActivationReport =
+    CP$activateImportedNativeLibraryFunctions[importReport];
+   activationReloadFailures = CP$libraryFunctionReloadFailures;
+   failedActivationNames =
+    If[AssociationQ[nativeActivationReport],
+     Keys[Select[nativeActivationReport, # === $Failed &]],
+     {}];
+   importNativeReport =
+    <|"ImportReport" -> importReport,
+     "NativeActivationReport" -> nativeActivationReport|>;
+   If[activationReloadFailures =!= {},
+    Print[
+     "Native compiled-function activation could not reload LibraryFunction handles:"];
+    Print[activationReloadFailures]];
+   If[failedActivationNames =!= {} || activationReloadFailures =!= {},
+    Print["Native compiled-function activation failed for:"];
+    Print[failedActivationNames];
+    importNativeReport =
+     Join[importNativeReport,
+      <|"FailedNativeActivations" -> failedActivationNames,
+       "LibraryFunctionReloadFailures" -> activationReloadFailures|>];
+    Abort[]];
+   importNativeReport
+   ];
+
+CP$definitionTransferRecord[name_String] :=
+  CP$withSymbol[
+   name,
+   Function[
+    sym,
+    <|"Name" -> CP$shortName[name], "Attributes" -> Attributes[sym],
+     "Options" -> Quiet@Check[Options[sym], {}],
+     "OwnValues" -> OwnValues[sym], "DownValues" -> DownValues[sym],
+     "UpValues" -> UpValues[sym], "SubValues" -> SubValues[sym],
+     "NValues" -> NValues[sym], "FormatValues" -> FormatValues[sym],
+     "DefaultValues" -> DefaultValues[sym]|>,
+    HoldAll]];
+
+CP$definitionTransferBlock[names_List] :=
+  Module[{records},
+   records = CP$definitionTransferRecord /@ CP$shortName[names];
+   With[{recs = records},
+    HoldComplete[
+     Scan[
+      Function[
+       rec,
+       Module[{name, attrs, attrsNoProtected, opts, own, down, up, sub,
+         nvals, fmt, defaults},
+        name = rec["Name"];
+        attrs = Lookup[rec, "Attributes", {}];
+        attrsNoProtected = DeleteCases[attrs, Protected];
+        opts = Lookup[rec, "Options", {}];
+        own = Lookup[rec, "OwnValues", {}];
+        down = Lookup[rec, "DownValues", {}];
+        up = Lookup[rec, "UpValues", {}];
+        sub = Lookup[rec, "SubValues", {}];
+        nvals = Lookup[rec, "NValues", {}];
+        fmt = Lookup[rec, "FormatValues", {}];
+        defaults = Lookup[rec, "DefaultValues", {}];
+        ToExpression[
+         name,
+         InputForm,
+         Function[
+          sym,
+          Quiet[Unprotect[sym]];
+          ClearAll[sym];
+          Attributes[sym] = attrsNoProtected;
+          If[opts =!= {}, Options[sym] = opts];
+          OwnValues[sym] = own;
+          DownValues[sym] = down;
+          UpValues[sym] = up;
+          SubValues[sym] = sub;
+          NValues[sym] = nvals;
+          FormatValues[sym] = fmt;
+          DefaultValues[sym] = defaults;
+          Attributes[sym] = attrs;
+          Null,
+          HoldAll]]
+        ]],
+      recs]]
+    ]
+   ];

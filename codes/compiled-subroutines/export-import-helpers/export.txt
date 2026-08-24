@@ -1,0 +1,51 @@
+(* ============================================================ *)
+(* Actual export, callable with Get[...].                        *)
+(* Mirrors export-current-no-recompile.txt with updated paths.   *)
+(* Exports current already-compiled functions without recompiling *)
+(* them. Export is master-kernel only.                            *)
+(* ============================================================ *)
+
+If[! ValueQ[CP$defsDir],
+  CP$defsDir =
+   If[StringQ[$InputFileName] && $InputFileName =!= "",
+    DirectoryName[$InputFileName],
+    FileNameJoin[{NotebookDirectory[], "export-import-helpers"}]]];
+
+If[! ValueQ[fileDefsGeneric],
+  fileDefsGeneric = FileNameJoin[{CP$defsDir, "defs-generic.txt"}]];
+
+If[! ValueQ[fileDefsExport],
+  fileDefsExport = FileNameJoin[{CP$defsDir, "defs-export.txt"}]];
+
+If[DownValues[CP$exportCurrentNativeLibraryFunctions] === {} ||
+  DownValues[CP$exportLocalCompiledFunctionCache] === {},
+  Get[fileDefsGeneric];
+  Get[fileDefsExport]];
+
+exportReport =
+  If[TrueQ[ifUseLocalCompiledFunctionCache] ||
+    TrueQ[CP$useLocalCompiledFunctionCache],
+   CP$exportLocalCompiledFunctionCache[dirCompFuncs,
+    "CompiledNames" -> eicCompiledNames,
+    "SupportNames" -> eicCompiledSupportNames],
+   CP$exportCurrentNativeLibraryFunctions[dirCompFuncs,
+    "CompiledNames" -> eicCompiledNames,
+    "SupportNames" -> eicCompiledSupportNames]];
+
+If[AssociationQ[exportReport] && KeyExistsQ[exportReport, "Error"],
+  Print[exportReport];
+  Abort[]];
+
+If[AssociationQ[exportReport] &&
+  Lookup[exportReport, "BadRecords", {}] =!= {},
+  Print["Compiled-function export skipped invalid routines:"];
+  Print[Lookup[exportReport, "BadRecords", {}]];
+  Abort[]];
+
+If[AssociationQ[exportReport] &&
+  Lookup[exportReport, "MissingNativeFiles", {}] =!= {},
+  Print["Compiled-function export did not write all native files:"];
+  Print[Lookup[exportReport, "MissingNativeFiles", {}]];
+  Abort[]];
+
+exportReport

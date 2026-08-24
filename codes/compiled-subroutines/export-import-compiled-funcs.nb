@@ -1,0 +1,324 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Wolfram 14.3' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       154,          7]
+NotebookDataLength[     11789,        314]
+NotebookOptionsPosition[     10833,        288]
+NotebookOutlinePosition[     11253,        305]
+CellTagsIndexPosition[     11210,        302]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["Exporting", "Subsection",
+ CellChangeTimes->{{3.9868884033187675`*^9, 
+  3.986888408888521*^9}},ExpressionUUID->"74d6755d-7f3e-7148-ba9d-\
+86a7a31d1ab9"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"compiledSymbolsOwn", "[", 
+    RowBox[{"ctx_", ":", "\"\<Global`\>\""}], "]"}], ":=", 
+   RowBox[{"Module", "[", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"names", "=", 
+       RowBox[{"Names", "[", 
+        RowBox[{"ctx", "<>", "\"\<*\>\""}], "]"}]}], "}"}], ",", 
+     RowBox[{"Select", "[", 
+      RowBox[{"names", ",", 
+       RowBox[{
+        RowBox[{"With", "[", 
+         RowBox[{
+          RowBox[{"{", 
+           RowBox[{"h", "=", 
+            RowBox[{"ToExpression", "[", 
+             RowBox[{"#", ",", "StandardForm", ",", "HoldComplete"}], "]"}]}],
+            "}"}], ",", 
+          RowBox[{"MatchQ", "[", 
+           RowBox[{
+            RowBox[{"OwnValues", "@@", "h"}], ",", 
+            RowBox[{"{", 
+             RowBox[{
+              RowBox[{"HoldPattern", "[", "_", "]"}], ":>", 
+              "_CompiledFunction"}], "}"}]}], "]"}]}], "]"}], "&"}]}], 
+      "]"}]}], "]"}]}], ";", 
+  RowBox[{"list", "=", 
+   RowBox[{"If", "[", 
+    RowBox[{"ifRecomputeCompiledRoutines", ",", "eicCompiledNames", ",", 
+     RowBox[{"{", "}"}]}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"list1", "=", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"#", ",", 
+       RowBox[{"checkIfCompiled", "[", 
+        RowBox[{"ToExpression", "[", "#", "]"}], "]"}]}], "}"}], "&"}], "/@", 
+    "list"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"listBroken", "=", 
+   RowBox[{"Select", "[", 
+    RowBox[{"list1", ",", 
+     RowBox[{
+      RowBox[{"!", 
+       RowBox[{"#", "[", 
+        RowBox[{"[", 
+         RowBox[{"2", ",", "1"}], "]"}], "]"}]}], "&"}]}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"If", "[", 
+   RowBox[{
+    RowBox[{"listBroken", "=!=", 
+     RowBox[{"{", "}"}]}], ",", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"Do", "[", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"Export", "[", 
+        RowBox[{
+         RowBox[{"FileNameJoin", "[", 
+          RowBox[{"{", 
+           RowBox[{
+            RowBox[{"NotebookDirectory", "[", "]"}], 
+            ",", "\"\<print-before-exporting\>\"", ",", 
+            RowBox[{"\"\<print-\>\"", "<>", 
+             RowBox[{"l", "[", 
+              RowBox[{"[", "1", "]"}], "]"}], "<>", "\"\<.txt\>\""}]}], "}"}],
+           "]"}], ",", 
+         RowBox[{"CompilePrint", "[", 
+          RowBox[{"ToExpression", "[", 
+           RowBox[{"l", "[", 
+            RowBox[{"[", "1", "]"}], "]"}], "]"}], "]"}], 
+         ",", "\"\<Table\>\""}], "]"}], "\[IndentingNewLine]", ",", 
+       RowBox[{"{", 
+        RowBox[{"l", ",", "listBroken"}], "}"}]}], "]"}], ";", 
+     "\[IndentingNewLine]", 
+     RowBox[{"infoDialog", "[", 
+      RowBox[{"Row", "[", 
+       RowBox[{"{", 
+        RowBox[{"\"\<There are some functions that are not compilable: \>\"", 
+         ",", 
+         RowBox[{"listBroken", "[", 
+          RowBox[{"[", 
+           RowBox[{"All", ",", "1"}], "]"}], "]"}], 
+         ",", "\"\<. Check `print-before-exporting` directory for \
+CompilePrint...\>\""}], "}"}], "]"}], "]"}], ";", "\[IndentingNewLine]", 
+     RowBox[{"Abort", "[", "]"}]}], "\[IndentingNewLine]", ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"With", "[", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{"files", "=", 
+         RowBox[{"FileNames", "[", 
+          RowBox[{"\"\<*\>\"", ",", 
+           RowBox[{"FileNameJoin", "[", 
+            RowBox[{"{", 
+             RowBox[{
+              RowBox[{"NotebookDirectory", "[", "]"}], 
+              ",", "\"\<print-before-exporting\>\""}], "}"}], "]"}]}], 
+          "]"}]}], "}"}], ",", 
+       RowBox[{"If", "[", 
+        RowBox[{
+         RowBox[{
+          RowBox[{"Length", "[", "files", "]"}], ">", "0"}], ",", 
+         RowBox[{"DeleteFile", "[", "files", "]"}]}], "]"}]}], "]"}], ";"}]}],
+    "\[IndentingNewLine]", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"If", "[", 
+  RowBox[{"ifRecomputeCompiledRoutines", ",", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"exportReport", "=", 
+     RowBox[{"Get", "[", 
+      RowBox[{"FileNameJoin", "[", 
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"NotebookDirectory", "[", "]"}], 
+         ",", "\"\<export-import-helpers\>\"", ",", "\"\<export.txt\>\""}], 
+        "}"}], "]"}], "]"}]}], ";", "\[IndentingNewLine]", 
+    RowBox[{"Print", "[", 
+     RowBox[{"exportReport", "[", "\"\<BuildOrder\>\"", "]"}], "]"}], ";", 
+    "\[IndentingNewLine]", 
+    RowBox[{"Print", "[", 
+     RowBox[{"exportReport", "[", "\"\<BadRecords\>\"", "]"}], "]"}], ";", 
+    "\[IndentingNewLine]", 
+    RowBox[{"Print", "[", 
+     RowBox[{"exportReport", "[", "\"\<UnpatchedOldPathHits\>\"", "]"}], 
+     "]"}], ";", "\[IndentingNewLine]", 
+    RowBox[{"FileNames", "[", 
+     RowBox[{"\"\<*\>\"", ",", "dirCompFuncs"}], "]"}]}]}], 
+  "\[IndentingNewLine]", "]"}]}], "Input",
+ CellChangeTimes->{{3.986888584268036*^9, 3.9868886090672493`*^9}, 
+   3.9868893774361153`*^9, {3.9868894647540665`*^9, 3.986889465813364*^9}, {
+   3.986889525455328*^9, 3.986889528018509*^9}, {3.986894116673765*^9, 
+   3.9868941413006477`*^9}, {3.9906342941839113`*^9, 3.990634332897273*^9}, {
+   3.990865757926489*^9, 3.990865773409645*^9}, {3.9908658448332767`*^9, 
+   3.9908658804996567`*^9}, 3.991205528992301*^9, {3.991206159263728*^9, 
+   3.991206170870739*^9}, {3.996549320391118*^9, 
+   3.996549320607088*^9}},ExpressionUUID->"8851be26-67c3-3e47-ba53-\
+71592550aaaa"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Importing", "Subsection",
+ CellChangeTimes->{{3.9868884033187675`*^9, 
+  3.986888411720318*^9}},ExpressionUUID->"eda6d28d-de32-d645-93d9-\
+d5c71e43c74e"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(*", " ", 
+   RowBox[{
+   "===", "===", "===", "===", "===", "===", "===", "===", "===", "===", "===",
+     "===", "===", "===", "===", "===", "===", "===", "===", "==="}], "*)"}], 
+  
+  RowBox[{"(*", 
+   RowBox[{"Actual", " ", 
+    RowBox[{"import", ":", 
+     RowBox[{"master", "+", 
+      RowBox[{"parallel", " ", 
+       RowBox[{"subkernels", "."}]}]}]}]}], "*)"}], 
+  RowBox[{"(*", 
+   RowBox[{
+    RowBox[{"Assumes", " ", "defs"}], "-", 
+    RowBox[{
+     RowBox[{"generic", ".", "txt"}], " ", "and", " ", "defs"}], "-", 
+    RowBox[{
+     RowBox[{"import", ".", "txt"}], " ", "are", " ", "already", " ", 
+     "loaded"}]}], "*)"}], 
+  RowBox[{"(*", 
+   RowBox[{
+   "or", " ", "pasted", " ", "earlier", " ", "in", " ", "the", " ", "master", 
+    " ", 
+    RowBox[{"notebook", "."}]}], "*)"}], 
+  RowBox[{"(*", 
+   RowBox[{"Subkernels", " ", "intentionally", " ", "use", " ", 
+    RowBox[{"Get", "[", "...", "]"}], " ", "from", " ", 
+    RowBox[{"disk", ":", 
+     RowBox[{"this", " ", "mimics"}]}]}], "*)"}], 
+  RowBox[{"(*", 
+   RowBox[{
+   "the", " ", "fast", " ", "original", " ", "workflow", " ", "and", " ", 
+    "avoids", " ", 
+    RowBox[{"DistributeDefinitions", "."}]}], "*)"}], 
+  RowBox[{"(*", " ", 
+   RowBox[{
+   "===", "===", "===", "===", "===", "===", "===", "===", "===", "===", "===",
+     "===", "===", "===", "===", "===", "===", "===", "===", "==="}], "*)"}], 
+  "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"CP$defsDir", "=", 
+     RowBox[{"NotebookDirectory", "[", "]"}]}], ";"}], "\n", 
+   RowBox[{
+    RowBox[{"fileDefsGeneric", "=", 
+     RowBox[{"FileNameJoin", "[", 
+      RowBox[{"{", 
+       RowBox[{
+       "CP$defsDir", ",", "\"\<export-import-helpers\>\"", 
+        ",", "\"\<defs-generic.txt\>\""}], "}"}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"fileDefsImport", "=", 
+     RowBox[{"FileNameJoin", "[", 
+      RowBox[{"{", 
+       RowBox[{
+       "CP$defsDir", ",", "\"\<export-import-helpers\>\"", 
+        ",", "\"\<defs-import.txt\>\""}], "}"}], "]"}]}], ";"}], "\n", 
+   RowBox[{
+    RowBox[{"fileImport", "=", 
+     RowBox[{"FileNameJoin", "[", 
+      RowBox[{"{", 
+       RowBox[{
+       "CP$defsDir", ",", "\"\<export-import-helpers\>\"", 
+        ",", "\"\<import.txt\>\""}], "}"}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"Get", "[", "fileDefsGeneric", "]"}], ";"}], "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"Get", "[", "fileDefsImport", "]"}], ";"}], "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"Get", "[", "fileImport", "]"}], ";"}], "\[IndentingNewLine]", 
+   RowBox[{"ParallelEvaluate", "[", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"Get", "[", "fileDefsGeneric", "]"}], ";", "\[IndentingNewLine]", 
+     RowBox[{"Get", "[", "fileDefsImport", "]"}], ";", "\[IndentingNewLine]", 
+     
+     RowBox[{"Get", "[", "fileImport", "]"}], ";"}], "\[IndentingNewLine]", 
+    "]"}]}]}]], "Input",
+ CellChangeTimes->{{3.986889486682995*^9, 3.986889486684002*^9}, 
+   3.986890443021597*^9, 3.9868907889872627`*^9, 3.9868908839399357`*^9, 
+   3.9868913960637646`*^9, {3.9868915505393867`*^9, 3.9868915526958447`*^9}, {
+   3.986891622741972*^9, 3.986891636247965*^9}, {3.9868916982310314`*^9, 
+   3.986891718902233*^9}, {3.986891861637581*^9, 3.986891864669779*^9}, {
+   3.9868921702937107`*^9, 3.986892247292473*^9}, {3.9868941633004913`*^9, 
+   3.986894182623745*^9}},
+ CellLabel->"In[6]:=",ExpressionUUID->"473843ac-8fcb-5340-b1d3-462a8e66526f"],
+
+Cell[BoxData[
+ FormBox[
+  RowBox[{"{", 
+   RowBox[{
+   "Null", ",", "Null", ",", "Null", ",", "Null", ",", "Null", ",", "Null", ",",
+     "Null", ",", "Null", ",", "Null", ",", "Null", ",", "Null", ",", "Null", 
+    ",", "Null", ",", "Null", ",", "Null", ",", "Null", ",", "Null", ",", 
+    "Null", ",", "Null", ",", "Null", ",", "Null", ",", "Null", ",", "Null", ",",
+     "Null", ",", "Null", ",", "Null", ",", "Null", ",", "Null", ",", "Null", 
+    ",", "Null", ",", "Null", ",", "Null"}], "}"}], 
+  TraditionalForm]], "Output",
+ CellChangeTimes->{3.9868935575024776`*^9, 3.9868947864302616`*^9, 
+  3.9868951237586*^9, 3.987521576005869*^9},
+ CellLabel->"Out[60]=",ExpressionUUID->"ee6e15e5-6d93-0142-9191-dcc213abd90f"]
+}, Open  ]],
+
+Cell[BoxData[""], "Input",
+ CellChangeTimes->{{3.989976338062463*^9, 3.989976338687496*^9}},
+ CellLabel->"In[14]:=",ExpressionUUID->"e94d4094-04aa-439e-95ba-4353c60da22b"]
+}, Open  ]]
+},
+WindowSize->{950, 522},
+WindowMargins->{{0, Automatic}, {Automatic, 1}},
+Magnification:>0.8 Inherited,
+FrontEndVersion->"14.3 for Mac OS X ARM (64-bit) (July 8, 2025)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"79726115-d3d5-364e-9b37-ca0e454483f3"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[576, 22, 159, 3, 42, "Subsection",ExpressionUUID->"74d6755d-7f3e-7148-ba9d-86a7a31d1ab9"],
+Cell[738, 27, 5440, 140, 399, "Input",ExpressionUUID->"8851be26-67c3-3e47-ba53-71592550aaaa"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[6215, 172, 159, 3, 42, "Subsection",ExpressionUUID->"eda6d28d-de32-d645-93d9-d5c71e43c74e"],
+Cell[CellGroupData[{
+Cell[6399, 179, 3506, 86, 268, "Input",ExpressionUUID->"473843ac-8fcb-5340-b1d3-462a8e66526f"],
+Cell[9908, 267, 723, 13, 25, "Output",ExpressionUUID->"ee6e15e5-6d93-0142-9191-dcc213abd90f"]
+}, Open  ]],
+Cell[10646, 283, 171, 2, 23, "Input",ExpressionUUID->"e94d4094-04aa-439e-95ba-4353c60da22b"]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)
+

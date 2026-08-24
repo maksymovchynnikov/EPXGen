@@ -1,0 +1,185 @@
+(* ============================================================ *)
+(* Generic compiled-function export/import helpers.              *)
+(* Paste/load this before defs-export.txt or defs-import.txt.     *)
+(* Hard-coded defaults can be overridden earlier in the notebook. *)
+(* ============================================================ *)
+
+If[! ValueQ[fileManifest], fileManifest = "CompiledManifest.mx"];
+If[! ValueQ[fileCompFuncs], fileCompFuncs = "CompiledFunctions.mx"];
+If[! ValueQ[fileSupport], fileSupport = "CompiledSupport.mx"];
+
+If[! ValueQ[CP$helperDirName],
+  CP$helperDirName = "export-import-helpers"];
+
+If[! ValueQ[CP$defsDir],
+  CP$defsDir =
+   If[StringQ[$InputFileName] && $InputFileName =!= "",
+    DirectoryName[$InputFileName],
+    FileNameJoin[{NotebookDirectory[], CP$helperDirName}]]];
+
+If[! ValueQ[CP$notebookDirForCompiledCache],
+  CP$notebookDirForCompiledCache =
+   If[FileNameTake[CP$defsDir] === CP$helperDirName,
+    ParentDirectory[CP$defsDir],
+    CP$defsDir]];
+
+If[! ValueQ[dirCompFuncsProject],
+  dirCompFuncsProject =
+   FileNameJoin[{
+     ParentDirectory[ParentDirectory[CP$notebookDirForCompiledCache]],
+     "auxiliary", "Comp-funcs"}]];
+
+If[! ValueQ[ifUseLocalCompiledFunctionCache],
+  ifUseLocalCompiledFunctionCache = $OperatingSystem === "MacOSX"];
+
+If[! ValueQ[dirCompFuncs],
+  dirCompFuncs =
+   If[TrueQ[ifUseLocalCompiledFunctionCache],
+    FileNameJoin[{$HomeDirectory, ".alp-eic-cf", $SystemID}],
+    dirCompFuncsProject]];
+
+ClearAll[
+  CP$shortName, CP$heldSymbol, CP$withSymbol, CP$getValue, CP$setValue,
+  CP$sharedLibExtQ, CP$sharedLibFileQ, CP$ensureDir, CP$safeFileBase,
+  CP$compiledFunctionQ, CP$compiledSymbolsOwn, CP$libraryFilesInsideCF,
+  CP$libraryFunctionParts, CP$libraryFunctionReloadFailure,
+  CP$clearLibraryFunctionReloadFailures, CP$reloadLibraryFunction,
+  CP$rewriteLibraryPathsInCF, CP$supportRecord, CP$restoreSupportRecord
+  ];
+
+If[! ValueQ[CP$libraryFunctionReloadFailures],
+  CP$libraryFunctionReloadFailures = {}];
+
+CP$shortName[name_String] := Last[StringSplit[name, "`"]];
+CP$shortName[names_List] := CP$shortName /@ names;
+CP$shortName[s_Symbol] := SymbolName[Unevaluated[s]];
+
+CP$heldSymbol[name_String] :=
+  ToExpression[CP$shortName[name], InputForm, HoldComplete];
+
+SetAttributes[CP$withSymbol, HoldRest];
+CP$withSymbol[name_String, body_] :=
+  CP$heldSymbol[name] /. HoldComplete[s_Symbol] :> body[s];
+
+CP$getValue[name_String] :=
+  CP$withSymbol[name, Function[sym, sym, HoldAll]];
+
+CP$setValue[name_String, value_] :=
+  CP$withSymbol[name, Function[sym, sym = value, HoldAll]];
+
+CP$sharedLibExtQ[ext_String] :=
+  MemberQ[{"dll", "so", "dylib"}, ToLowerCase[ext]];
+
+CP$sharedLibFileQ[file_String] :=
+  StringQ[file] && FileExistsQ[file] &&
+   CP$sharedLibExtQ[FileExtension[file]];
+
+CP$ensureDir[dir_String] :=
+  If[! DirectoryQ[dir],
+   CreateDirectory[dir, CreateIntermediateDirectories -> True]];
+
+CP$safeFileBase[name_String] :=
+  StringReplace[
+   CP$shortName[name],
+   {"$" -> "_Dollar_", "/" -> "_", "\\" -> "_", ":" -> "_",
+    " " -> "_", "[" -> "_", "]" -> "_", "(" -> "_", ")" -> "_",
+    "{" -> "_", "}" -> "_", "," -> "_", ";" -> "_", "`" -> "_"}];
+
+CP$compiledFunctionQ[name_String] :=
+  CP$withSymbol[name,
+   Function[sym,
+    MatchQ[OwnValues[sym], {HoldPattern[_] :> _CompiledFunction}],
+    HoldAll]];
+
+CP$compiledSymbolsOwn[ctxPattern_ : ($Context <> "*")] :=
+  Select[Names[ctxPattern], CP$compiledFunctionQ];
+
+CP$libraryFilesInsideCF[cf_CompiledFunction] :=
+  Module[{raw, files},
+   raw = Unevaluated[cf] /. {CompiledFunction -> List,
+      LibraryFunction -> List, LibraryData -> List};
+   files = Cases[raw, s_String /; CP$sharedLibFileQ[s], Infinity];
+   DeleteDuplicates[files]
+   ];
+
+CP$libraryFunctionParts[lib_LibraryFunction] :=
+  Module[{raw},
+   raw = Unevaluated[lib] /. LibraryFunction -> List;
+   Replace[
+    raw,
+    {file_String, fun_String, args_, ret_, ___} :> {file, fun, args, ret},
+    {0}]
+   ];
+
+CP$libraryFunctionReloadFailure[reason_String, parts_] :=
+  (AppendTo[
+    CP$libraryFunctionReloadFailures,
+    <|"Reason" -> reason, "LibraryFunctionParts" -> parts|>];
+   $Failed);
+
+CP$clearLibraryFunctionReloadFailures[] :=
+  (CP$libraryFunctionReloadFailures = {});
+
+CP$reloadLibraryFunction[lib_LibraryFunction] :=
+  Module[{parts, loaded},
+   parts = CP$libraryFunctionParts[lib];
+   If[! MatchQ[parts, {_String, _String, _, _}],
+    Return[CP$libraryFunctionReloadFailure["MalformedLibraryFunction", parts]]];
+   If[! FileExistsQ[parts[[1]]],
+    Return[CP$libraryFunctionReloadFailure["MissingNativeFile", parts]]];
+   loaded =
+    Quiet@Check[
+      LibraryFunctionLoad[parts[[1]], parts[[2]], parts[[3]], parts[[4]]],
+      $Failed];
+   If[Head[loaded] === LibraryFunction,
+    loaded,
+    CP$libraryFunctionReloadFailure["LibraryFunctionLoadFailed", parts]]
+   ];
+
+CP$reloadLibraryFunction[other_] := other;
+
+CP$rewriteLibraryPathsInCF[cf_CompiledFunction, pathRules_List] :=
+  cf /. Dispatch[pathRules];
+
+CP$supportRecord[name_String] :=
+  CP$withSymbol[name,
+   Function[
+    sym,
+    <|"Name" -> CP$shortName[name], "Attributes" -> Attributes[sym],
+     "Options" -> Quiet@Check[Options[sym], {}],
+     "OwnValues" -> OwnValues[sym], "DownValues" -> DownValues[sym],
+     "UpValues" -> UpValues[sym], "SubValues" -> SubValues[sym],
+     "NValues" -> NValues[sym], "FormatValues" -> FormatValues[sym],
+     "DefaultValues" -> DefaultValues[sym]|>,
+    HoldAll]];
+
+CP$restoreSupportRecord[rec_Association] :=
+  Module[{name, attrs, attrsNoProtected, opts, own, down, up, sub,
+    nvals, fmt, defaults},
+   name = CP$shortName[rec["Name"]];
+   attrs = Lookup[rec, "Attributes", {}];
+   attrsNoProtected = DeleteCases[attrs, Protected];
+   opts = Lookup[rec, "Options", {}];
+   own = Lookup[rec, "OwnValues", {}];
+   down = Lookup[rec, "DownValues", {}];
+   up = Lookup[rec, "UpValues", {}];
+   sub = Lookup[rec, "SubValues", {}];
+   nvals = Lookup[rec, "NValues", {}];
+   fmt = Lookup[rec, "FormatValues", {}];
+   defaults = Lookup[rec, "DefaultValues", {}];
+   CP$withSymbol[name,
+    Function[sym,
+     Quiet[Unprotect[sym]];
+     Attributes[sym] = attrsNoProtected;
+     If[opts =!= {}, Options[sym] = opts];
+     OwnValues[sym] = own;
+     DownValues[sym] = down;
+     UpValues[sym] = up;
+     SubValues[sym] = sub;
+     NValues[sym] = nvals;
+     FormatValues[sym] = fmt;
+     DefaultValues[sym] = defaults;
+     Attributes[sym] = attrs;
+     Null,
+     HoldAll]]
+   ];

@@ -1,0 +1,9 @@
+(* ============================================================ *)
+(* Current-kernel import only.                                  *)
+(* Assumes defs-generic.txt and defs-import.txt are already loaded *)
+(* by the caller. The caller controls ParallelEvaluate outside.   *)
+(* ============================================================ *)
+
+importNativeReport = CP$runNativeImport[dirCompFuncs];
+
+importNativeReport

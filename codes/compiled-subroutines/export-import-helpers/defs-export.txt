@@ -1,0 +1,440 @@
+(* ============================================================ *)
+(* Export-only helpers. Requires defs-generic.txt.               *)
+(* Exports current already-compiled C CompiledFunction values     *)
+(* without recompiling them.                                     *)
+(* ============================================================ *)
+
+Quiet@Needs["CompiledFunctionTools`"];
+
+ClearAll[
+  CP$autoStageTag, CP$libraryFunctionsInsideCF,
+  CP$libraryFileInsideLibraryFunction, CP$mainLibraryFileForName,
+  CP$compiledFunctionRuntimeAttributes, CP$runtimeAttributesForName,
+  CP$libraryFilesForName, CP$compiledDependencyGraphFromValues,
+  CP$topologicalOrderFromDeps, CP$binaryPathString,
+  CP$patchBinaryPathsInFile, CP$embeddedOldPathReport,
+  CP$exportCurrentNativeLibraryFunctions,
+  CP$exportLocalCompiledFunctionCache
+  ];
+
+CP$autoStageTag[] :=
+  StringTake[StringReplace[CreateUUID[], "-" -> ""], 12];
+
+CP$libraryFunctionsInsideCF[cf_CompiledFunction] :=
+  Cases[Unevaluated[cf] /. CompiledFunction -> List,
+   lib_LibraryFunction :> lib, Infinity];
+
+CP$libraryFileInsideLibraryFunction[lib_LibraryFunction] :=
+  Module[{raw, files},
+   raw = Unevaluated[lib] /. {LibraryFunction -> List,
+      LibraryData -> List};
+   files = Cases[raw, s_String /; CP$sharedLibFileQ[s], Infinity];
+   If[files === {}, Missing["NoNativeFile"], First[files]]
+   ];
+
+CP$mainLibraryFileForName[name_String] :=
+  CP$withSymbol[name,
+   Function[sym,
+    If[! MatchQ[sym, _CompiledFunction],
+     Missing["NotCompiledFunction"],
+     Module[{libs = CP$libraryFunctionsInsideCF[sym]},
+      If[libs === {}, Missing["NoLibraryFunction"],
+       CP$libraryFileInsideLibraryFunction[Last[libs]]]
+      ]],
+    HoldAll]];
+
+CP$compiledFunctionRuntimeAttributes[cf_CompiledFunction] :=
+  Module[{raw, vals, attrs, print},
+   raw = Unevaluated[cf] /. {CompiledFunction -> List,
+      LibraryFunction -> List, LibraryData -> List};
+   vals =
+    Cases[raw,
+     Rule[RuntimeAttributes, value_] :> value, Infinity];
+   If[vals === {},
+    vals =
+     Quiet@
+      Check[{RuntimeAttributes /. Options[cf, RuntimeAttributes]}, {}]];
+   If[Flatten[{vals}] === {} || Flatten[{vals}] === {RuntimeAttributes},
+    print =
+     Quiet@Check[
+       ToString[CompiledFunctionTools`CompilePrint[cf], InputForm], ""];
+    If[StringContainsQ[print, "RuntimeAttributes -> {Listable}"] ||
+      StringContainsQ[print, "RuntimeAttributes -> Listable"],
+     vals = {{Listable}}]];
+   attrs =
+    DeleteCases[Flatten[{If[vals === {}, {}, Last[vals]]}],
+     None | Null | RuntimeAttributes];
+   attrs
+   ];
+
+CP$runtimeAttributesForName[name_String] :=
+  CP$withSymbol[name,
+   Function[sym,
+    If[MatchQ[sym, _CompiledFunction],
+     CP$compiledFunctionRuntimeAttributes[sym],
+     {}],
+    HoldAll]];
+
+CP$libraryFilesForName[name_String] :=
+  CP$withSymbol[name,
+   Function[sym,
+    If[MatchQ[sym, _CompiledFunction],
+     CP$libraryFilesInsideCF[sym],
+     {}],
+    HoldAll]];
+
+CP$compiledDependencyGraphFromValues[names_List] :=
+  Module[{shortNames, filesByName, ownFileByName},
+   shortNames = CP$shortName /@ names;
+   filesByName =
+    AssociationThread[shortNames, CP$libraryFilesForName /@ shortNames];
+   ownFileByName =
+    AssociationThread[shortNames, CP$mainLibraryFileForName /@ shortNames];
+   AssociationThread[
+    shortNames,
+    Function[name,
+      Module[{parentFiles, otherNames},
+       parentFiles = Lookup[filesByName, name, {}];
+       otherNames = DeleteCases[shortNames, name];
+       Select[
+        otherNames,
+        With[{ownFile =
+            Lookup[ownFileByName, #, Missing["NoNativeFile"]]},
+          StringQ[ownFile] && MemberQ[parentFiles, ownFile]] &]
+       ]] /@ shortNames]
+   ];
+
+CP$topologicalOrderFromDeps[deps_Association] :=
+  Module[{remaining, order = {}, ready},
+   remaining = Keys[deps];
+   While[remaining =!= {},
+    ready =
+     Select[remaining,
+      Intersection[Lookup[deps, #, {}], remaining] === {} &];
+    If[ready === {},
+     Return[<|"Error" -> "Cycle or unresolved dependency.",
+       "Remaining" -> remaining, "Dependencies" -> deps|>]];
+    order = Join[order, ready];
+    remaining = Select[remaining, ! MemberQ[ready, #] &];
+    ];
+   order
+   ];
+
+CP$binaryPathString[s_String] :=
+  FromCharacterCode[ToCharacterCode[s, "UTF8"], "ISO8859-1"];
+
+CP$patchBinaryPathsInFile[file_String, pathRules_List] :=
+  Module[{bytes, bin, changed = False, reports = {}, old, new,
+    oldBytes, newBytes, oldBin, newBin, count, stream},
+   bytes = BinaryReadList[file, "Byte"];
+   bin = FromCharacterCode[bytes, "ISO8859-1"];
+   Do[
+    old = rule[[1]];
+    new = rule[[2]];
+    oldBytes = ToCharacterCode[old, "UTF8"];
+    newBytes = ToCharacterCode[new, "UTF8"];
+    oldBin = FromCharacterCode[oldBytes, "ISO8859-1"];
+    count = Length[StringPosition[bin, oldBin]];
+    If[Length[newBytes] > Length[oldBytes],
+     AppendTo[
+      reports,
+      <|"OldPath" -> old, "NewPath" -> new,
+       "Occurrences" -> count,
+       "Status" -> If[count > 0, "TooLong", "NotPresent"]|>],
+     newBin =
+      FromCharacterCode[
+       Join[newBytes,
+        ConstantArray[0, Length[oldBytes] - Length[newBytes]]],
+       "ISO8859-1"];
+     If[count > 0,
+      bin = StringReplace[bin, oldBin -> newBin];
+      changed = True];
+     AppendTo[
+      reports,
+      <|"OldPath" -> old, "NewPath" -> new,
+       "Occurrences" -> count,
+       "Status" -> If[count > 0, "Patched", "NotPresent"]|>]
+     ],
+    {rule, pathRules}];
+   If[changed,
+    stream = OpenWrite[file, BinaryFormat -> True];
+    BinaryWrite[stream, ToCharacterCode[bin, "ISO8859-1"], "Byte"];
+    Close[stream]];
+   <|"File" -> file, "Rules" -> reports, "Changed" -> changed|>
+   ];
+
+CP$embeddedOldPathReport[files_List, oldPaths_List] :=
+  Module[{bin, hits},
+   Select[
+    Function[file,
+      bin =
+       FromCharacterCode[BinaryReadList[file, "Byte"], "ISO8859-1"];
+      hits =
+       Select[oldPaths,
+        StringContainsQ[bin, CP$binaryPathString[#]] &];
+      <|"File" -> file, "OldPathHits" -> hits|>
+      ] /@ files,
+    Lookup[#, "OldPathHits", {}] =!= {} &]
+   ];
+
+Options[CP$exportCurrentNativeLibraryFunctions] =
+  {"CompiledNames" -> Automatic, "SupportNames" -> {},
+   "ContextPattern" :> ($Context <> "*"), "PatchEmbeddedPaths" -> True,
+   "UpdateCurrentDefinitions" -> False};
+
+CP$exportCurrentNativeLibraryFunctions[
+   dir_String : dirCompFuncs, OptionsPattern[]] :=
+  Module[{names, shortNames, badRecords, badNames, deps, order, tag,
+    supportNames, oldFiles, newBases, newFiles, pathRules, copyRecords,
+    patchReports, unpatchedOldPathHits, permanentCompiledFunctions,
+    compiledObjects, supportRecords, compiledRecords,
+    runtimeAttributesByName, listableCompiledNames, manifest,
+    updateCurrentQ, patchQ},
+   CP$ensureDir[dir];
+   patchQ = TrueQ[OptionValue["PatchEmbeddedPaths"]];
+   updateCurrentQ = TrueQ[OptionValue["UpdateCurrentDefinitions"]];
+   names = OptionValue["CompiledNames"];
+   supportNames = CP$shortName /@ OptionValue["SupportNames"];
+   shortNames =
+    If[names === Automatic,
+     CP$shortName /@
+      CP$compiledSymbolsOwn[OptionValue["ContextPattern"]],
+     CP$shortName /@ names];
+   badRecords =
+    Join[
+     (<|"Name" -> #,
+         "Error" -> "Symbol is not a CompiledFunction."|> & /@
+       Select[shortNames, ! CP$compiledFunctionQ[#] &]),
+     (<|"Name" -> #,
+         "Error" ->
+          "CompiledFunction has no native LibraryFunction."|> & /@
+       Select[
+        shortNames,
+        CP$compiledFunctionQ[#] &&
+          ! StringQ[CP$mainLibraryFileForName[#]] &])
+     ];
+   badNames = Lookup[badRecords, "Name", {}];
+   shortNames = Select[shortNames, ! MemberQ[badNames, #] &];
+   deps = CP$compiledDependencyGraphFromValues[shortNames];
+   order = CP$topologicalOrderFromDeps[deps];
+   If[AssociationQ[order] && KeyExistsQ[order, "Error"],
+    Return[
+     Join[
+      <|"BuildOrder" -> {}, "CompiledNames" -> shortNames,
+       "NativeActivationOrder" -> {}, "DependencyGraph" -> deps,
+       "BadRecords" -> badRecords|>,
+      order]]];
+   tag = CP$autoStageTag[];
+   oldFiles = DeleteDuplicates@Flatten[CP$libraryFilesForName /@ order];
+   newBases =
+    Table[
+     "native-" <> tag <> "-" <> IntegerString[i, 10, 3] <> "." <>
+      FileExtension[oldFiles[[i]]],
+     {i, Length[oldFiles]}];
+   newFiles = FileNameJoin[{dir, #}] & /@ newBases;
+   MapThread[
+    Function[{src, dst}, CopyFile[src, dst, OverwriteTarget -> False]],
+    {oldFiles, newFiles}];
+   pathRules = Thread[oldFiles -> newFiles];
+   copyRecords =
+    MapThread[
+     <|"OriginalNativeFile" -> #1, "CopiedNativeFile" -> #2,
+       "PermanentNativeFile" -> #3|> &,
+     {oldFiles, newBases, newFiles}];
+   patchReports =
+    If[patchQ, CP$patchBinaryPathsInFile[#, pathRules] & /@ newFiles,
+     {}];
+   unpatchedOldPathHits = CP$embeddedOldPathReport[newFiles, oldFiles];
+   permanentCompiledFunctions =
+    CP$rewriteLibraryPathsInCF[CP$getValue[#], pathRules] & /@ order;
+   runtimeAttributesByName =
+    AssociationThread[order, CP$runtimeAttributesForName /@ order];
+   listableCompiledNames =
+    Select[
+     order,
+     MemberQ[Lookup[runtimeAttributesByName, #, {}], Listable] &];
+   If[updateCurrentQ,
+    MapThread[CP$setValue[#1, #2] &, {order,
+      permanentCompiledFunctions}]];
+   compiledObjects =
+    <|"Names" -> order, "CompiledFunctions" -> permanentCompiledFunctions|>;
+   Export[FileNameJoin[{dir, fileCompFuncs}], compiledObjects, "MX"];
+   supportRecords = CP$supportRecord /@ supportNames;
+   Export[FileNameJoin[{dir, fileSupport}], supportRecords, "MX"];
+   compiledRecords =
+    Function[
+      name,
+      <|"Name" -> name,
+       "OriginalNativeFiles" -> CP$libraryFilesForName[name],
+       "PermanentNativeFiles" ->
+        (CP$libraryFilesForName[name] /. pathRules),
+       "RuntimeAttributes" ->
+        Lookup[runtimeAttributesByName, name, {}]|>] /@ order;
+   manifest =
+    <|"CreatedDate" -> DateString[{"ISODate", " ", "Time"}],
+     "SystemID" -> $SystemID, "SystemWordLength" -> $SystemWordLength,
+     "VersionNumber" -> $VersionNumber,
+     "PermanentDirectory" -> ExpandFileName[dir],
+     "ExportMode" -> "CurrentNoRecompileNative", "StageTag" -> tag,
+     "CompiledNames" -> order, "NativeActivationOrder" -> order,
+     "DependencyGraph" -> deps,
+     "RuntimeAttributesByName" -> runtimeAttributesByName,
+     "ListableCompiledNames" -> listableCompiledNames,
+     "SupportNames" -> supportNames, "ManifestFileName" -> fileManifest,
+     "CompiledFileName" -> fileCompFuncs,
+     "SupportFileName" -> fileSupport, "NativeFilesWritten" -> newBases,
+     "DataFilesWritten" -> {fileManifest, fileCompFuncs, fileSupport},
+     "NativeFileRecords" -> copyRecords,
+     "CompiledRecords" -> compiledRecords, "PathRules" -> pathRules,
+     "PatchEmbeddedPaths" -> patchQ, "PatchReports" -> patchReports,
+     "UnpatchedOldPathHits" -> unpatchedOldPathHits,
+     "BadRecords" -> badRecords|>;
+   Export[FileNameJoin[{dir, fileManifest}], manifest, "MX"];
+   <|"PermanentDirectory" -> ExpandFileName[dir], "StageTag" -> tag,
+    "BuildOrder" -> order, "DependencyGraph" -> deps,
+    "CompiledNames" -> order, "NativeActivationOrder" -> order,
+    "RuntimeAttributesByName" -> runtimeAttributesByName,
+    "ListableCompiledNames" -> listableCompiledNames,
+    "NativeFilesWritten" -> Select[newFiles, FileExistsQ],
+    "MXFilesWritten" ->
+     Select[
+      FileNameJoin[{dir, #}] & /@ {fileManifest, fileCompFuncs,
+        fileSupport}, FileExistsQ],
+    "PatchReports" -> patchReports,
+    "UnpatchedOldPathHits" -> unpatchedOldPathHits,
+    "BadRecords" -> badRecords, "Manifest" -> manifest|>
+   ];
+
+Options[CP$exportLocalCompiledFunctionCache] =
+  {"CompiledNames" -> Automatic, "SupportNames" -> {},
+   "ContextPattern" :> ($Context <> "*")};
+
+CP$exportLocalCompiledFunctionCache[
+   dir_String : dirCompFuncs, OptionsPattern[]] :=
+  Module[{names, shortNames, badRecords, badNames, deps, order,
+    supportNames, oldFiles, cacheFiles, duplicateBases, copyRecords,
+    compiledFunctions, compiledObjects, supportRecords,
+    runtimeAttributesByName, listableCompiledNames,
+    missingNativeFiles, missingOriginalNativeFiles, manifest},
+   CP$ensureDir[dir];
+   names = OptionValue["CompiledNames"];
+   supportNames = CP$shortName /@ OptionValue["SupportNames"];
+   shortNames =
+    If[names === Automatic,
+     CP$shortName /@
+      CP$compiledSymbolsOwn[OptionValue["ContextPattern"]],
+     CP$shortName /@ names];
+   badRecords =
+    Join[
+     (<|"Name" -> #,
+         "Error" -> "Symbol is not a CompiledFunction."|> & /@
+       Select[shortNames, ! CP$compiledFunctionQ[#] &]),
+     (<|"Name" -> #,
+         "Error" ->
+          "CompiledFunction has no native LibraryFunction."|> & /@
+       Select[
+        shortNames,
+        CP$compiledFunctionQ[#] &&
+          ! StringQ[CP$mainLibraryFileForName[#]] &])
+     ];
+   badNames = Lookup[badRecords, "Name", {}];
+   shortNames = Select[shortNames, ! MemberQ[badNames, #] &];
+   deps = CP$compiledDependencyGraphFromValues[shortNames];
+   order = CP$topologicalOrderFromDeps[deps];
+   If[AssociationQ[order] && KeyExistsQ[order, "Error"],
+    Return[
+     Join[
+      <|"CacheKind" -> "LocalCompiledFunctionCache",
+       "BuildOrder" -> {}, "CompiledNames" -> shortNames,
+       "NativeActivationOrder" -> {}, "DependencyGraph" -> deps,
+       "BadRecords" -> badRecords|>,
+      order]]];
+   oldFiles = DeleteDuplicates@Flatten[CP$libraryFilesForName /@ order];
+   duplicateBases =
+    Select[Tally[FileNameTake /@ oldFiles], Last[#] > 1 &];
+   If[duplicateBases =!= {},
+    Return[
+     <|"CacheKind" -> "LocalCompiledFunctionCache",
+      "Error" -> "DuplicateNativeBasenames",
+      "DuplicateBasenames" -> duplicateBases,
+      "BuildOrder" -> order, "DependencyGraph" -> deps,
+      "BadRecords" -> badRecords|>]];
+   missingOriginalNativeFiles = Select[oldFiles, ! FileExistsQ[#] &];
+   If[missingOriginalNativeFiles =!= {},
+    Return[
+     <|"CacheKind" -> "LocalCompiledFunctionCache",
+      "Error" -> "MissingOriginalNativeFiles",
+      "MissingOriginalNativeFiles" -> missingOriginalNativeFiles,
+      "BuildOrder" -> order, "DependencyGraph" -> deps,
+      "BadRecords" -> badRecords|>]];
+   cacheFiles = FileNameJoin[{dir, FileNameTake[#]}] & /@ oldFiles;
+   copyRecords =
+    MapThread[
+     <|"OriginalNativeFile" -> #1, "CachedNativeFile" -> #2,
+       "CopiedNativeFile" -> #2, "PermanentNativeFile" -> #1|> &,
+     {oldFiles, cacheFiles}];
+   MapThread[
+    Function[{src, dst}, CopyFile[src, dst, OverwriteTarget -> True]],
+    {oldFiles, cacheFiles}];
+   compiledFunctions = CP$getValue /@ order;
+   missingNativeFiles = Select[cacheFiles, ! FileExistsQ[#] &];
+   runtimeAttributesByName =
+    AssociationThread[order, CP$runtimeAttributesForName /@ order];
+   listableCompiledNames =
+    Select[
+     order,
+     MemberQ[Lookup[runtimeAttributesByName, #, {}], Listable] &];
+   compiledObjects =
+    <|"Names" -> order, "CompiledFunctions" -> compiledFunctions|>;
+   Export[FileNameJoin[{dir, fileCompFuncs}], compiledObjects, "MX"];
+   supportRecords = CP$supportRecord /@ supportNames;
+   Export[FileNameJoin[{dir, fileSupport}], supportRecords, "MX"];
+   manifest =
+    <|"CacheKind" -> "LocalCompiledFunctionCache",
+     "CacheSchemaVersion" -> 10,
+     "CreatedDate" -> DateString[{"ISODate", " ", "Time"}],
+     "SystemID" -> $SystemID, "SystemWordLength" -> $SystemWordLength,
+     "VersionNumber" -> $VersionNumber,
+     "PermanentDirectory" -> ExpandFileName[dir],
+     "ExportMode" -> "LocalCompiledFunctionCache",
+     "InlineCompiledFunctions" -> False,
+     "PreservesCompiledFunctionStructure" -> True,
+     "CompiledNames" -> order, "NativeActivationOrder" -> order,
+     "DependencyGraph" -> deps,
+     "RuntimeAttributesByName" -> runtimeAttributesByName,
+     "ListableCompiledNames" -> listableCompiledNames,
+     "SupportNames" -> supportNames, "ManifestFileName" -> fileManifest,
+     "CompiledFileName" -> fileCompFuncs,
+     "SupportFileName" -> fileSupport,
+     "OriginalNativeFiles" -> oldFiles,
+     "ReferencedNativeFiles" -> oldFiles,
+     "CachedNativeFiles" -> cacheFiles,
+     "MissingNativeFiles" -> missingNativeFiles,
+     "NativeFileRecords" -> copyRecords,
+     "PathRules" -> {}, "PatchReports" -> {},
+     "UnpatchedOldPathHits" -> {},
+     "NativeFilesWritten" -> cacheFiles, "DataFilesWritten" ->
+      {fileManifest, fileCompFuncs, fileSupport},
+     "BadRecords" -> badRecords|>;
+   Export[FileNameJoin[{dir, fileManifest}], manifest, "MX"];
+   <|"CacheKind" -> "LocalCompiledFunctionCache",
+    "CacheSchemaVersion" -> 10,
+    "PermanentDirectory" -> ExpandFileName[dir],
+    "BuildOrder" -> order, "DependencyGraph" -> deps,
+    "CompiledNames" -> order, "NativeActivationOrder" -> order,
+    "RuntimeAttributesByName" -> runtimeAttributesByName,
+    "ListableCompiledNames" -> listableCompiledNames,
+    "OriginalNativeFiles" -> oldFiles,
+    "ReferencedNativeFiles" -> oldFiles,
+    "CachedNativeFiles" -> cacheFiles,
+    "MissingNativeFiles" -> missingNativeFiles,
+    "NativeFileRecords" -> copyRecords,
+    "PathRules" -> {}, "PatchReports" -> {},
+    "UnpatchedOldPathHits" -> {},
+    "NativeFilesWritten" -> Select[cacheFiles, FileExistsQ],
+    "MXFilesWritten" ->
+     Select[
+      FileNameJoin[{dir, #}] & /@ {fileManifest, fileCompFuncs,
+        fileSupport}, FileExistsQ],
+    "BadRecords" -> badRecords, "Manifest" -> manifest|>
+   ];
