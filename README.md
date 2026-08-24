@@ -101,7 +101,7 @@ The release separates source code from model inputs, generated data, and caches:
 
 | Path | Contents |
 |---|---|
-| [`data-import/`](data-import/) | ALP-meson mixing and gluonic-coupling inputs, the running-$\alpha_s$ table, and the ALP-width model. |
+| [`data-import/`](data-import/) | ALP-meson mixing and gluonic-coupling inputs, the table with running $\alpha_s$, and the ALP-width model. |
 | `auxiliary/` | Generated local caches: WXF symbolic expressions, MX squared matrix elements, and platform-specific compiled functions under `Comp-funcs/`. These files are created automatically during first initialization and are not distributed. |
 | [`datasets/`](datasets/) | Compact ALP and meson cross-section tables, semi-analytic and Monte Carlo validation data, the derived background table, and optional event samples. |
 | [`plots/`](plots/) | Selected PDF and PNG outputs produced by the analysis notebooks. |
