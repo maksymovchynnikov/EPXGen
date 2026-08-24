@@ -25,7 +25,7 @@ This is not an event generator based only on an equivalent-photon flux. The full
 Events are parameterized by a complete set of invariants, conveniently written as
 
 $$
-\left\{s_{\gamma^*p},\,Q^2,\,t_p,\,s_1\right\},
+\left\lbrace s_{\gamma^*p},\,Q^2,\,t_p,\,s_1\right\rbrace,
 \qquad Q^2=-(p_e-p'_e)^2,
 \qquad t_p=(p_p-p'_p)^2.
 $$
