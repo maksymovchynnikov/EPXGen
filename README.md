@@ -20,13 +20,15 @@ $$
 \gamma^*p\longrightarrow pX.
 $$
 
-This is not an event generator based only on an equivalent-photon flux. The full calculation retains the virtuality of the exchanged photon and all correlations among the outgoing electron, proton, and boson. The equivalent-photon approximation (EPA) is implemented as a cross-check: it reproduces total rates and selected one-dimensional distributions well in the near-real-photon regime, but it does not retain the full finite-$Q^2$ multidimensional information required for realistic acceptances and correlated selections.
+This is not an event generator based only on an equivalent-photon flux. The full calculation retains the virtuality of the exchanged photon and all correlations among the outgoing electron, proton, and boson. The equivalent-photon approximation (EPA) is implemented as a cross-check: it reproduces total rates and selected one-dimensional distributions well in the near-real-photon regime, but it does not retain the full finite multidimensional information at finite electron momentum transfer $Q^2=-(p_e-p'_e)^2$, required for realistic acceptances and correlated selections.
 
 Events are parameterized by a complete set of invariants, conveniently written as
 
 $$
-\left\lbrace s_{\gamma^*p},Q^2,t_p,s_1\right\rbrace,\qquad Q^2=-(p_e-p'_e)^2,\qquad t_p=(p_p-p'_p)^2.
+\left\lbrace s_{\gamma^*p},Q^2,t_p,s_1\right\rbrace,\qquad Q^2=-(p_e-p'_e)^2,\qquad t_p=(p_p-p'_p)^2,
 $$
+
+where $s_{\gamma^*p}$ is the invariant mass of the incoming proton and the virtual photon, and $t_{p}$ is the proton momentum transfer.
 
 Their exact nested kinematic boundaries are used. Importance sampling is logarithmic in the strongly peaked variables $s_{\gamma^*p}$, $Q^2$, and $-t_p$, while the remaining invariant is sampled over its physical interval. Every accepted point can be converted back to the complete laboratory-frame four-momenta. The result is therefore suitable for total rates, differential distributions, multidimensional correlations, detector selections, and decay studies.
 
